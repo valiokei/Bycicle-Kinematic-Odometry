@@ -1,5 +1,4 @@
 from unreal_api.environment import Environment
-#from VehicleOdometryInfo import OdometryCar
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -87,18 +86,6 @@ def animatex(i):
 
     classObject.SetStaticData(wheelRadius,delta_T,Lr,Lf)
     trajectory = classObject.carTrajector(steerings,rotations)
-
-    # trajectory = KinematicBicycleModelOdometry.carTrajector(
-    #     steerings, rotations, observations[2][8], 0.1, observations[2][10]/2, observations[2][10]/2)
-
-
-    print('difference x: '+ str(trajectory[0]-observations[1][6]))
-    print('difference y: '+str(trajectory[1]-observations[1][7]))
-
-
-
-    print('difference yaw: ')
-    print(trajectory[2]-observations[1][10])
 
     xs.append(trajectory[0])
     ys.append(trajectory[1])
