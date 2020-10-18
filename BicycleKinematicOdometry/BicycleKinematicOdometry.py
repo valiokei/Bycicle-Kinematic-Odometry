@@ -12,7 +12,6 @@ class BicycleKinematicOdometry:
 
     def __init__(self):
         self.wheelRadius = 0
-        self.delta_T = 0
         self.Lr = 0
         self.Lf = 0
 
@@ -21,22 +20,18 @@ class BicycleKinematicOdometry:
     def SetWheelRadius(self, wheelRadius):
         self.wheelRadius = wheelRadius
 
-    def SetDelta_t(self, delta_T):
-        self.delta_T = delta_T
-
     def SetLr(self, Lr):
         self.Lr = Lr
 
     def SetLf(self, Lf):
         self.Lf = Lf
 
-    def SetStaticData(self, wheelRadius, delta_T, Lr, Lf):
+    def SetStaticData(self, wheelRadius, Lr, Lf):
         self.SetWheelRadius(wheelRadius)
-        self.SetDelta_t(delta_T)
         self.SetLr(Lr)
         self.SetLf(Lf)
 
-    def ComputeVelocity(self, wheelsRotationAngle, wheelIndex,):
+    def ComputeVelocity(self, wheelsRotationAngle, wheelIndex, delta_t):
         '''
         This function allows to compute the wheel linear velocity.
         Parmameters
@@ -114,29 +109,33 @@ class BicycleKinematicOdometry:
         # the wheel circunference
         wheelCircumference = 2*math.pi*self.wheelRadius
         # the velocity of the wheel: space/delta_T
-        v = (wheelCircumference * (abs(rotationAngleDifference)/360))/self.delta_T
+        v = (wheelCircumference * (abs(rotationAngleDifference)/360))/delta_t
 
         # update the memory variable with new old value
         self.oldRotationAngle[wheelIndex] = wheelsRotationAngle
 
         return [v, rotationSign]
 
-    def OdometryCar(self, wheelsSteerAngle, wheelsRotationAngle):
+    def OdometryCar(self, wheelsSteerAngle, wheelsRotationAngle, delta_t):
         # this Odometry model is based on the equations shows in https://www.youtube.com/watch?v=HqNdBiej23I
 
         # NOTE: this is an assumption!!!
         # We approssimate the steerangle of the car by mean doing
         # the mean of the front-steering-wheels, that are, for our car, the only that changing their direction.
         # according to  http://www.ce.unipr.it/~medici/ctrl.pdf for relative small angle the approssimation is fine
+
+        # print('wheelsSteerAngle: '+str(wheelsSteerAngle))
+
         wheelsSteerAngle = np.mean([wheelsSteerAngle[0], wheelsSteerAngle[1]])
 
         # vehicle velocity
         # compute the velocity for each wheel
-        wheelsRotationAngle = np.asarray(wheelsRotationAngle)[0]
-        v0 = self.ComputeVelocity(wheelsRotationAngle[0], 0)
-        v1 = self.ComputeVelocity(wheelsRotationAngle[1], 1)
-        v2 = self.ComputeVelocity(wheelsRotationAngle[2], 2)
-        v3 = self.ComputeVelocity(wheelsRotationAngle[3], 3)
+        wheelsRotationAngle = np.asarray(wheelsRotationAngle)
+
+        v0 = self.ComputeVelocity(wheelsRotationAngle[0], 0, delta_t)
+        v1 = self.ComputeVelocity(wheelsRotationAngle[1], 1, delta_t)
+        v2 = self.ComputeVelocity(wheelsRotationAngle[2], 2, delta_t)
+        v3 = self.ComputeVelocity(wheelsRotationAngle[3], 3, delta_t)
 
         allV = np.array([v0[0], v1[0], v2[0], v3[0]])
 
@@ -164,7 +163,7 @@ class BicycleKinematicOdometry:
         # Compute vehicle orientation angle
         # change steering sign to be compliance with UE4 gps data
         if(rotationSign == 1):
-            yawAngle = wheelsSteerAngle * (-1) # this value is in degree
+            yawAngle = wheelsSteerAngle * (-1)  # this value is in degree
         else:
             yawAngle = wheelsSteerAngle   # this value is in degree
 
@@ -179,7 +178,25 @@ class BicycleKinematicOdometry:
 
         # first compute the car orientation
         yawRate = (v/(self.Lr*2)) * math.cos(beta) * math.tan(yawAngle)
-        newYawAngle = yawRate * self.delta_T
+        newYawAngle = yawRate * delta_t
+
+        if(newYawAngle != 0): # L'ERRORE LO HGO QUANDO GIRO A SINISTRA!!!!!!!!!!!!!
+            if(abs(newYawAngle) < 1):
+                if(newYawAngle < 0 ):
+                    newYawAngle += 0.0003
+                if(newYawAngle > 0):
+                    newYawAngle -= 0.0003
+
+                if(newYawAngle >0.5):
+                    newYawAngle -= 0.001
+                if(newYawAngle <0.5):
+                    newYawAngle += 0.001
+
+        if(abs(newYawAngle) >= 1):
+            if(newYawAngle < 0):
+                newYawAngle += 0.005
+            if(newYawAngle > 0):
+                newYawAngle -= 0.05
 
         # second compute the components of the velocity vector.
         # NOTE: with bycicle model we ar assuming that this vector is positioned
@@ -188,18 +205,19 @@ class BicycleKinematicOdometry:
         vy = v * math.sin(newYawAngle + beta)
 
         # From velocity model to odometric model
-        dx = vx * self.delta_T * rotationSign
-        dy = vy * self.delta_T * rotationSign
+        dx = vx * delta_t * rotationSign
+        dy = vy * delta_t * rotationSign
 
         return [dx, dy, newYawAngle]
 
-    def carTrajector(self, wheelsSteerAngle, wheelsRotationAngle):
+    def carTrajector(self, wheelsSteerAngle, wheelsRotationAngle, delta_t):
         '''
         This method compute the absolute pose from new data. 
         The fixed Reference system used here is the one that the car have before its first shift
         '''
         # compute the odometry data
-        newPoseArray = self.OdometryCar(wheelsSteerAngle, wheelsRotationAngle)
+        newPoseArray = self.OdometryCar(
+            wheelsSteerAngle, wheelsRotationAngle, delta_t)
 
         # save data from previous step
         oldPose = np.array(
