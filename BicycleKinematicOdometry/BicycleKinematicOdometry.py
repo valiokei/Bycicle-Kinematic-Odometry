@@ -180,24 +180,6 @@ class BicycleKinematicOdometry:
         yawRate = (v/(self.Lr*2)) * math.cos(beta) * math.tan(yawAngle)
         newYawAngle = yawRate * delta_t
 
-        if(newYawAngle != 0): # L'ERRORE LO HGO QUANDO GIRO A SINISTRA!!!!!!!!!!!!!
-            if(abs(newYawAngle) < 1):
-                if(newYawAngle < 0 ):
-                    newYawAngle += 0.0003
-                if(newYawAngle > 0):
-                    newYawAngle -= 0.0003
-
-                if(newYawAngle >0.5):
-                    newYawAngle -= 0.001
-                if(newYawAngle <0.5):
-                    newYawAngle += 0.001
-
-        if(abs(newYawAngle) >= 1):
-            if(newYawAngle < 0):
-                newYawAngle += 0.005
-            if(newYawAngle > 0):
-                newYawAngle -= 0.05
-
         # second compute the components of the velocity vector.
         # NOTE: with bycicle model we ar assuming that this vector is positioned
         # at distance Lr from the rear wheel and Lf from the front wheel
